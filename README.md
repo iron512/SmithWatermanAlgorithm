@@ -20,6 +20,7 @@ python3 smith_waterman.py TGTTGTAG TGTTGAT
 *Note: the script has an helper. using the command -h it will show all the parameters that can be added to tune the algorithm*
 
 3) Examples
+
 Run the code changing the default scoring system (+3,-3,-2)
 ```
 python3 smith_waterman.py TGTTACGG GGTTGACTA -sm +1 -sx -1 -sg -2
