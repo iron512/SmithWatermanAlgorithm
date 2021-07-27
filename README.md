@@ -9,7 +9,7 @@ Ivan Martini #2075971
 
 1) Clone the repository
 ```
-git clone https://github.com/iron512/DataMining2021.git
+git clone https://github.com/iron512/SmithWatermanAlgorithm.git
 ```
 
 2) Run the code
