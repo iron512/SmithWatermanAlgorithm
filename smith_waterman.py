@@ -1,5 +1,15 @@
 #!/usr/bin/python
 
+#The modified version of the program must return all the alignments satisfying the following conditions:
+#1) at least 1 occurrence of at least 3 consecutive matches
+#2) score >= 60% of the maximum scoring alignment
+#Alignments satisfying the 2 conditions should be ordered by their longest streak of consecutive matches (from the longest to the shortest).
+
+#Solving strategy:
+#1) Find all the possible alignements through smith waterman
+#2) Filter the alignments using the rules described
+#3) Order them
+
 #TGTTACGG GGTTGACTA
 
 import argparse
@@ -28,8 +38,8 @@ def cmatch(a, b, positive, negative):
 	else:
 		return negative
 
-#the custom print function. The first row/columns are substituted by the actual letters of the sequences.
-#online versions also prompt the first rows/columns (filled with zeros) but I feel that this way of displaying the 
+#the custom print function. The first row/column are substituted by the actual letters of the sequences.
+#online versions also prompt the first row/column (filled with zeros) but I feel that this way of displaying the 
 #result is more intuitive and understandable. 
 def pprint(s1, s2, matrix):
 	for i in range(0, len(s1)+1):
@@ -43,6 +53,8 @@ def pprint(s1, s2, matrix):
 			else:
 				print(matrix[i][j], end="\t")		
 		print()
+	print()
+
 
 #A little modification of the function presented above. The headers are colored in green, but also the actual sequence is highlighted in yellow.
 #Since it was quite hard to display the arrows in the terminal, I adopted this solution.
@@ -62,6 +74,75 @@ def pprint_color(s1, s2, matrix, color):
 				else:
 					print(ylw(str(matrix[i][j])), end="\t")	
 		print()
+	print()
+
+#The backtracking function, starting from a single point (deciding the point from where to start is decided elsewhere)
+def backtrack(point, s1, s2, matrix, direction):
+	x = point[0]
+	y = point[1]
+
+	alignments = [[[""],[""],[""],[]]]
+	maxlen = -1
+	for direct in direction[x][y]:
+		if direct == 'd':
+			successive = []
+			if x>0 and y>0:		
+				successive = backtrack([x-1,y-1], s1, s2, matrix, direction)
+
+			for couple in successive:
+				alignA = [s1[x-1]] + couple[0]
+				alignB = [s2[y-1]] + couple[2]
+
+				if (s1[x-1] == s2[y-1]):
+					matches = ["|"] + couple[1]
+				else:
+					matches = ["X"] + couple[1]
+
+				color = [(x,y)] + couple[3]
+				if len(alignA) > maxlen:
+					maxlen = len(alignA)
+
+				alignments.append([alignA,matches,alignB,color])
+
+		#parse the gaps
+		elif direct == 'u':
+			successive = []
+			if x>0 and y>0:		
+				successive = backtrack([x-1,y], s1, s2, matrix, direction)
+
+			for couple in successive:
+				alignA = [s1[x-1]] + couple[0]
+				alignB = ["-"] + couple[2]
+				matches = [" "] + couple[1]
+
+				color = [(x,y)] + couple[3]
+				if len(alignA) > maxlen:
+					maxlen = len(alignA)
+				alignments.append([alignA,matches,alignB,color])
+
+		elif direct == 'l':
+			successive = []
+			if x>0 and y>0:		
+				successive = backtrack([x,y-1], s1, s2, matrix, direction)
+
+			for couple in successive:
+				alignA = ["-"] + couple[0]
+				alignB = [s2[y-1]] + couple[2]
+				matches = [" "] + couple[1]
+
+				color = [(x,y)] + couple[3]
+				if len(alignA) > maxlen:
+					maxlen = len(alignA)
+				alignments.append([alignA,matches,alignB,color])
+
+	toreturn = [[[""],[""],[""],[]]] 
+
+	#filter only the maximal results
+	for el in alignments:
+		if len(el[0]) == maxlen:
+			toreturn.append(el)
+
+	return toreturn
 
 def main():
 	#setup the parser
@@ -118,10 +199,6 @@ def main():
 			
 			if matrix[i][j] > current_max:
 				current_max = matrix[i][j]
-				current_max_pos = [[i,j]]
-			#Store all the highest values. Just ONE path each is explored
-			elif matrix[i][j] == current_max:
-				current_max_pos.append([i,j])
 			
 			#keep track of the candidates, needed for backtracking the algorithm.
 			if (matrix[i][j] == diag):
@@ -135,60 +212,40 @@ def main():
 
 	print("SEQ1:","".join(seq1))
 	print("SEQ2:","".join(seq2))
-	print("SCORE:",current_max)
+	print("MAX SCORE:",current_max)
+
+	#find all the scores with at least 60% of the maximum score
+	current_max = current_max * 0.6
+	print("ACCEPTED SCORE:",current_max)
 	print()
 
-	#the pair will always be one (The last, arbitrary choice), but the algorithm is ready to explore multiple paths.
-	for pair in current_max_pos[-1:]:
-		x = pair[0]
-		y = pair[1]
+	for i in range(1, len(seq1)+1):
+		for j in range(1, len(seq2)+1):	
+			if matrix[i][j] >= current_max:
+				current_max_pos.append([i,j])
 
-		#store the backtracked values and their position (to color the path)
-		alignA = []
-		matches = []
-		alignB = []
-		color = []
+	for pair in current_max_pos:
+		result = backtrack(pair, seq1, seq2, matrix, direction)
+		
+		for couple in result[1:]:
+			first = couple[0]
+			matches = couple[1]
+			second = couple[2]
+			color = couple[3]
 
-		#start from the end, go until a cell found has been inizialized by a "new" (or the boundaries are exceeded).
-		while x>0 and y>0 and (not direction[x][y][0] == 'n'):
-			#parse the match/mismatch
-			color.append((x,y))
-			if direction[x][y][0] == 'd':		
-				alignA.append(seq1[x-1])
-				alignB.append(seq2[y-1])
-				if (seq1[x-1] == seq2[y-1]):
-					matches.append("|")
-				else:
-					matches.append("X")
-				x-=1
-				y-=1
+			first.reverse()
+			matches.reverse()
+			second.reverse()
 
-			#parse the gaps
-			elif direction[x][y][0] == 'u':	
-				alignA.append('-')
-				alignB.append(seq1[x-1])
-				matches.append(" ")
-				x-=1
+			#filter the results containing at least 3 consecutive matches matches:
+			if "|||" in "".join(matches): 
+				print("".join(first))
+				print("".join(matches))
+				print("".join(second))
+				print()
 
-			elif direction[x][y][0] == 'l':	
-				alignA.append(seq2[y-1])
-				alignB.append('-')
-				matches.append(" ")
-				y-=1
-		color.append((x,y))
-
-		#reverse the backtracked values, in order to produce the correct string and print them as a string
-		alignA.reverse()
-		matches.reverse()
-		alignB.reverse()
-
-		print("".join(alignA))
-		print("".join(matches))
-		print("".join(alignB))
-		print()
-
-		if output == "color":
-			pprint_color(seq1,seq2,matrix,color)
+				if output == "color":
+					pprint_color(seq1,seq2,matrix,color)
 
 	if output == "std":
 		pprint(seq1,seq2,matrix)
